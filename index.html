@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>面積表計算工具｜理德地政士事務所</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --navy: #1e3a5f; --blue: #2e6da4; --blue2: #4a8fc4;
+  --gold: #c8962e; --gold2: #e8b84b;
+  --green: #2a7a4f; --red: #c0392b;
+  --bg: #f0f2f5; --surface: #ffffff;
+  --border: #d0d7e0; --text: #1a1a2e; --text2: #5a6070;
+  --row1: #f5f8fc; --row2: #eaf0f8;
+  --ok: #d4edda; --warn: #fff3cd; --err: #f8d7da;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans TC','微軟正黑體',sans-serif;background:var(--bg);color:var(--text);font-size:13px}
+
+/* ── Header ── */
+header{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+header h1{font-size:17px;font-weight:700;letter-spacing:.5px}
+header .sub{font-size:11px;opacity:.65;margin-top:3px}
+.ver-tabs{display:flex;gap:6px;align-items:center}
+.ver-tab{padding:5px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.7);cursor:pointer;font-size:12px;transition:.2s}
+.ver-tab.active{background:var(--gold);border-color:var(--gold);color:#fff;font-weight:700}
+.ver-tab:hover:not(.active){background:rgba(255,255,255,.1)}
+.add-ver{padding:5px 10px;border-radius:20px;border:1px dashed rgba(255,255,255,.4);color:rgba(255,255,255,.6);cursor:pointer;font-size:12px}
+.add-ver:hover{border-color:var(--gold2);color:var(--gold2)}
+
+/* ── Layout ── */
+.wrap{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:16px;max-width:1600px;margin:0 auto}
+.panel{background:var(--surface);border-radius:10px;border:1px solid var(--border);overflow:hidden}
+.panel-head{background:var(--navy);color:#fff;padding:10px 16px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+.panel-head .ico{font-size:16px}
+.panel-body{padding:14px}
+
+/* ── Form controls ── */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600}
+input[type=text],input[type=number],select{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text);transition:.15s;font-family:inherit}
+input:focus,select:focus{outline:none;border-color:var(--blue2);box-shadow:0 0 0 2px rgba(74,143,196,.15)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+/* ── Buttons ── */
+.btn{padding:8px 18px;border:none;border-radius:7px;font-size:13px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:.2s;font-family:inherit}
+.btn-primary{background:var(--navy);color:#fff}.btn-primary:hover{background:#2a4f7a}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#1e5c38}
+.btn-gold{background:var(--gold);color:#fff}.btn-gold:hover{background:#a87820}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:#922b21}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--text2)}.btn-ghost:hover{background:var(--bg)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* ── Unit table (left panel) ── */
+.unit-table{width:100%;border-collapse:collapse;font-size:12px}
+.unit-table th{background:var(--navy);color:#fff;padding:6px 8px;text-align:center;white-space:nowrap;font-weight:600}
+.unit-table td{padding:4px 4px;border-bottom:1px solid #eef;vertical-align:middle}
+.unit-table tr:nth-child(even) td{background:var(--row1)}
+.unit-table input{width:100%;padding:3px 5px;border:1px solid #dde;border-radius:4px;font-size:12px;text-align:right}
+.unit-table .del-btn{background:none;border:none;cursor:pointer;color:#c00;font-size:14px;padding:0 3px}
+
+/* ── Car type table ── */
+.car-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.car-table th{background:var(--blue);color:#fff;padding:6px 8px;text-align:center}
+.car-table td{padding:4px 6px;border-bottom:1px solid #eef;vertical-align:middle}
+.car-table tr:nth-child(even) td{background:var(--row1)}
+.car-table input{width:100%;padding:3px 5px;border:1px solid #dde;border-radius:4px;font-size:12px;text-align:right}
+
+/* ── Result table (right panel) ── */
+.result-wrap{overflow-x:auto}
+.res-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+.res-table th{background:var(--navy);color:#fff;padding:7px 10px;text-align:center;position:sticky;top:0}
+.res-table th.sub{background:var(--blue);font-size:11px}
+.res-table td{padding:5px 8px;text-align:right;border-bottom:1px solid #eef}
+.res-table td.label{text-align:left;font-weight:600;color:var(--navy)}
+.res-table td.center{text-align:center}
+.res-table tr:nth-child(odd) td{background:var(--row1)}
+.res-table tr:nth-child(even) td{background:var(--row2)}
+.res-table tr.total-row td{background:#e8f0e8;font-weight:700;border-top:2px solid var(--green)}
+.res-table input.share-input{width:70px;padding:2px 4px;border:1px solid #aac;border-radius:3px;text-align:right;font-size:12px;background:#fffce8}
+
+/* ── Status bar ── */
+.status-bar{padding:10px 16px;display:flex;gap:16px;align-items:center;border-top:1px solid var(--border);font-size:12px;background:#fafbfc}
+.stat{display:flex;align-items:center;gap:5px}
+.badge{padding:3px 10px;border-radius:12px;font-weight:700;font-size:12px}
+.badge-ok{background:var(--ok);color:#155724}
+.badge-warn{background:var(--warn);color:#856404}
+.badge-err{background:var(--err);color:#721c24}
+.close-bar{padding:8px 16px;background:var(--navy);color:#fff;font-size:13px;display:flex;gap:16px;align-items:center}
+.close-val{font-size:18px;font-weight:700;color:var(--gold2)}
+
+/* ── Car result ── */
+.car-result{background:var(--row1);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px}
+.car-result-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #eee}
+.car-result-row:last-child{border:none}
+.car-share-input{width:80px;padding:3px 6px;border:1px solid #aac;border-radius:4px;font-size:13px;text-align:right;background:#fffce8;font-weight:700}
+
+/* ── Tabs for result sections ── */
+.rtabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:0}
+.rtab{padding:8px 16px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s}
+.rtab.active{color:var(--navy);border-bottom-color:var(--navy)}
+.rtab-content{display:none;padding:14px}.rtab-content.active{display:block}
+
+.notice{padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px}
+.notice-blue{background:#dbeafe;color:#1e40af}
+.notice-green{background:#d1fae5;color:#065f46}
+.notice-red{background:#fee2e2;color:#991b1b}
+.notice-yellow{background:#fef9c3;color:#854d0e}
+
+.divider{height:1px;background:var(--border);margin:12px 0}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🏢 面積表計算工具</h1>
+    <div class="sub">理德地政士事務所｜建物登記面積 / 持分計算</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:11px;opacity:.6">公設比版本：</span>
+    <div class="ver-tabs" id="verTabs"></div>
+    <div class="add-ver" onclick="addVersion()">＋版本</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ── 左側輸入區 ── -->
+  <div>
+
+    <!-- 基本設定 -->
+    <div class="panel" style="margin-bottom:12px">
+      <div class="panel-head"><span class="ico">⚙️</span>基本設定</div>
+      <div class="panel-body">
+        <div class="field">
+          <label>建案名稱 / 地段地號</label>
+          <input type="text" id="projName" placeholder="例：中和區連城段118地號">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>公設總面積（㎡）<span style="color:#c00">*</span></label>
+            <input type="number" id="commonTotal" placeholder="例：2611.29" step="0.01" oninput="calc()">
+          </div>
+          <div class="field">
+            <label>目標公設比（%）</label>
+            <input type="number" id="targetRatio" placeholder="例：32.04" step="0.01" oninput="calcTargetRatio()">
+          </div>
+        </div>
+        <div class="notice notice-blue">公設比 = 大公面積 ÷ （主+附屬 + 大公）。輸入目標公設比可反推大公應佔面積，或直接輸入公設總面積。</div>
+      </div>
+    </div>
+
+    <!-- 各戶面積 -->
+    <div class="panel" style="margin-bottom:12px">
+      <div class="panel-head"><span class="ico">🏠</span>各戶建物面積</div>
+      <div class="panel-body">
+        <div style="overflow-x:auto">
+          <table class="unit-table" id="unitTable">
+            <thead>
+              <tr>
+                <th>樓層</th><th>戶別</th><th>門牌</th>
+                <th>主建物<br>㎡</th><th>陽台<br>㎡</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="unitBody"></tbody>
+          </table>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" onclick="addUnit()">＋ 新增戶</button>
+          <label for="xlsxInput" class="btn btn-gold btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px">📂 上傳 Excel 模板</label>
+          <input type="file" id="xlsxInput" accept=".xlsx,.xls" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden" onchange="importXlsx(this)">
+          <button class="btn btn-ghost btn-sm" onclick="importCSV()">📋 貼上資料</button>
+        </div>
+        <div id="importMsg" style="display:none;margin-top:8px;padding:6px 10px;border-radius:6px;font-size:12px"></div>
+      </div>
+    </div>
+
+    <!-- 車位設定 -->
+    <div class="panel">
+      <div class="panel-head"><span class="ico">🚗</span>車位設定</div>
+      <div class="panel-body">
+        <div class="notice notice-blue" style="margin-bottom:8px">
+          大公面積 = (主+附屬合計) × 公設比 ÷ (1 − 公設比)，車公 = 公設總面積 − 大公，隨公設比自動連動。<br>
+          每位登記面積 = 車公總面積 × (該類車格合計 / 車格總面積) / 數量
+        </div>
+        <table class="car-table" id="carTable">
+          <thead>
+            <tr>
+              <th>車位類型</th><th>數量</th><th>車格尺寸<br>㎡</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="carBody"></tbody>
+        </table>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" onclick="addCarType()">＋ 新增車位類型</button>
+        </div>
+        <div class="divider"></div>
+        <div id="carResult" class="car-result" style="display:none"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── 右側結果區 ── -->
+  <div class="panel">
+    <div class="panel-head"><span class="ico">📊</span>計算結果</div>
+
+    <!-- 閉合狀態列 -->
+    <div class="close-bar" id="closeBar">
+      <span>持分閉合</span>
+      <span class="close-val" id="closeVal">—</span>
+      <span style="opacity:.6">/ 1,000,000</span>
+      <span id="closeBadge"></span>
+      <span style="margin-left:auto;opacity:.7;font-size:11px" id="closeNote"></span>
+    </div>
+
+    <div style="padding:10px 14px 0">
+      <div class="rtabs">
+        <div class="rtab active" onclick="showTab('tabMain',this)">各戶面積表</div>
+        <div class="rtab" onclick="showTab('tabCar',this)">車位持分分配</div>
+        <div class="rtab" onclick="showTab('tabSummary',this)">彙總</div>
+      </div>
+    </div>
+
+    <!-- Tab 1: 各戶面積表 -->
+    <div class="rtab-content active" id="tabMain">
+      <div class="result-wrap">
+        <table class="res-table" id="resTable">
+          <thead>
+            <tr>
+              <th rowspan="2">樓層</th>
+              <th rowspan="2">戶別</th>
+              <th rowspan="2">門牌</th>
+              <th colspan="2">主建物</th>
+              <th colspan="2">附屬建物（陽台）</th>
+              <th colspan="2">主＋附屬</th>
+              <th colspan="2">大公分攤</th>
+              <th colspan="2">登記面積</th>
+              <th rowspan="2">大公持分<br>/100000</th>
+              <th rowspan="2">土地持分<br>/100000</th>
+              <th rowspan="2">公設比</th>
+              <th rowspan="2">車位編號</th>
+            </tr>
+            <tr>
+              <th class="sub">㎡</th><th class="sub">坪</th>
+              <th class="sub">㎡</th><th class="sub">坪</th>
+              <th class="sub">㎡</th><th class="sub">坪</th>
+              <th class="sub">㎡</th><th class="sub">坪</th>
+              <th class="sub">㎡</th><th class="sub">坪</th>
+            </tr>
+          </thead>
+          <tbody id="resBody"></tbody>
+        </table>
+      </div>
+      <div class="status-bar" id="statusBar"></div>
+    </div>
+
+    <!-- Tab 2: 車位持分分配 -->
+    <div class="rtab-content" id="tabCar">
+      <div id="carShareArea"></div>
+    </div>
+
+    <!-- Tab 3: 彙總 -->
+    <div class="rtab-content" id="tabSummary">
+      <div id="summaryArea"></div>
+    </div>
+
+    <div style="padding:10px 14px 14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-green" onclick="exportExcel()">⬇️ 下載 Excel 面積表</button>
+      <button class="btn btn-gold" onclick="copyVersion()">📋 複製為新版本</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetAll()">↺ 全部清除</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- 貼上資料 Modal -->
+<div id="pasteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:20px;width:560px;max-width:95vw">
+    <h3 style="margin-bottom:10px">📋 貼上各戶資料</h3>
+    <div style="font-size:12px;color:#666;margin-bottom:8px">格式：每列一戶，欄位順序：樓層、戶別、門牌、主建物㎡、陽台㎡<br>可以從 Excel 直接複製貼上（Tab 分隔）</div>
+    <textarea id="pasteArea" style="width:100%;height:180px;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;font-family:monospace" placeholder="3F&#9;A1&#9;8號3樓&#9;61.99&#9;4.86
+3F&#9;A2&#9;10號3樓&#9;27.84&#9;4.82"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closePaste()">取消</button>
+      <button class="btn btn-primary" onclick="doPaste()">匯入</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// State
+// ══════════════════════════════════════════════════════
+let versions = [{
+  id: 1, name: '版本1',
+  projName: '', commonTotal: '', targetRatio: '',
+  units: [],
+  carTypes: [],
+  carShares: {} // {carTypeIndex: shareEach (手動調整)}
+}];
+let currentVer = 0;
+
+function ver() { return versions[currentVer]; }
+
+// ══════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════
+window.onload = () => {
+  // 預設示範資料
+  ver().projName = '中和區連城段118地號';
+  ver().commonTotal = '2611.29';
+  ver().targetRatio = '32.04';
+  ver().units = [
+    {floor:'1+2F',unit:'A',door:'8號',main:233.38,bal:0},
+    {floor:'1+2F',unit:'A5',door:'18號',main:200.75,bal:7.5},
+    {floor:'2F',unit:'A4',door:'16號2樓',main:47.73,bal:3.12},
+    {floor:'2F',unit:'A6',door:'20號2樓',main:36.18,bal:4.93},
+    {floor:'3F',unit:'A1',door:'8號3樓',main:61.99,bal:4.86},
+    {floor:'3F',unit:'A2',door:'10號3樓',main:27.84,bal:4.82},
+  ];
+  ver().carTypes = [
+    {name:'平面車位', count:27, gridArea:13.75},
+    {name:'殘障車位', count:2,  gridArea:16.5},
+  ];
+  renderAll();
+};
+
+// ══════════════════════════════════════════════════════
+// Version management
+// ══════════════════════════════════════════════════════
+function renderVerTabs() {
+  const el = document.getElementById('verTabs');
+  el.innerHTML = versions.map((v,i) =>
+    `<div class="ver-tab ${i===currentVer?'active':''}" onclick="switchVer(${i})">${v.name}</div>`
+  ).join('');
+}
+
+function switchVer(i) {
+  saveInputsToState();
+  currentVer = i;
+  loadStateToInputs();
+  renderAll();
+}
+
+function addVersion() {
+  saveInputsToState();
+  const newV = JSON.parse(JSON.stringify(ver()));
+  newV.id = Date.now();
+  newV.name = `版本${versions.length+1}`;
+  versions.push(newV);
+  currentVer = versions.length - 1;
+  loadStateToInputs();
+  renderAll();
+}
+
+function copyVersion() {
+  saveInputsToState();
+  const newV = JSON.parse(JSON.stringify(ver()));
+  newV.id = Date.now();
+  newV.name = `版本${versions.length+1}`;
+  versions.push(newV);
+  currentVer = versions.length - 1;
+  loadStateToInputs();
+  renderAll();
+}
+
+function saveInputsToState() {
+  ver().projName = document.getElementById('projName').value;
+  ver().commonTotal = document.getElementById('commonTotal').value;
+  ver().targetRatio = document.getElementById('targetRatio').value;
+}
+
+function loadStateToInputs() {
+  document.getElementById('projName').value = ver().projName || '';
+  document.getElementById('commonTotal').value = ver().commonTotal || '';
+  document.getElementById('targetRatio').value = ver().targetRatio || '';
+}
+
+// ══════════════════════════════════════════════════════
+// Unit table
+// ══════════════════════════════════════════════════════
+function renderUnitTable() {
+  const tbody = document.getElementById('unitBody');
+  tbody.innerHTML = '';
+  ver().units.forEach((u, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input value="${u.floor||''}" onchange="ver().units[${i}].floor=this.value;calc()" style="width:60px"></td>
+      <td><input value="${u.unit||''}" onchange="ver().units[${i}].unit=this.value;calc()" style="width:40px"></td>
+      <td><input value="${u.door||''}" onchange="ver().units[${i}].door=this.value;calc()" style="width:90px;text-align:left"></td>
+      <td><input type="number" value="${u.main||''}" step="0.01" onchange="ver().units[${i}].main=parseFloat(this.value)||0;calc()" style="width:62px"></td>
+      <td><input type="number" value="${u.bal||''}" step="0.01" onchange="ver().units[${i}].bal=parseFloat(this.value)||0;calc()" style="width:55px"></td>
+      <td><button class="del-btn" onclick="delUnit(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function addUnit() {
+  ver().units.push({floor:'',unit:'',door:'',main:0,bal:0});
+  renderUnitTable();
+}
+
+function delUnit(i) {
+  ver().units.splice(i,1);
+  renderUnitTable();
+  calc();
+}
+
+// ══════════════════════════════════════════════════════
+// Car table
+// ══════════════════════════════════════════════════════
+function renderCarTable() {
+  const tbody = document.getElementById('carBody');
+  tbody.innerHTML = '';
+  ver().carTypes.forEach((c,i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input value="${c.name||''}" onchange="ver().carTypes[${i}].name=this.value;calc()" style="width:80px;text-align:left"></td>
+      <td><input type="number" value="${c.count||''}" onchange="ver().carTypes[${i}].count=parseInt(this.value)||0;calc()" style="width:45px"></td>
+      <td><input type="number" value="${c.gridArea||''}" step="0.01" onchange="ver().carTypes[${i}].gridArea=parseFloat(this.value)||0;calc()" style="width:55px"></td>
+      <td><button class="del-btn" onclick="delCar(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function addCarType() {
+  ver().carTypes.push({name:'新車位類型',count:1,gridArea:13.75});
+  renderCarTable();
+  calc();
+}
+
+function delCar(i) {
+  ver().carTypes.splice(i,1);
+  delete ver().carShares[i];
+  renderCarTable();
+  calc();
+}
+
+// ══════════════════════════════════════════════════════
+// Core calculation
+// ══════════════════════════════════════════════════════
+function px(n) { return (n*0.3025).toFixed(2); }
+function fmt(n,d=2) { return typeof n==='number'?n.toFixed(d):'—'; }
+
+function calcTargetRatio() {
+  // 如果輸入目標公設比，不自動反推（因為還需要各戶面積）
+  calc();
+}
+
+function calc() {
+  saveInputsToState();
+  const commonTotal = parseFloat(ver().commonTotal) || 0;
+  const targetRatio = parseFloat(ver().targetRatio) / 100 || 0;
+  const units = ver().units;
+  const carTypes = ver().carTypes;
+
+  if (!commonTotal || units.length === 0) {
+    renderEmpty();
+    return;
+  }
+
+  // Step 1: 各戶主+附屬
+  const totalMB = units.reduce((s,u) => s + (u.main||0) + (u.bal||0), 0);
+  if (totalMB === 0) { renderEmpty(); return; }
+
+  // Step 2: 車位計算
+  // 大公面積 = 公設總面積 × 公設比
+  // 車位總面積（車公）= 公設總面積 - 大公面積
+  // 每位登記面積 = 車公總面積 × (該類車格合計 / 車格總面積) / 數量
+  // 每位持分 = 每位登記面積 / 公設總面積 × 100000
+  const totalCarGridArea = carTypes.reduce((s,c) => s + (c.count||0)*(c.gridArea||0), 0);
+  let carResults = [];
+  let totalCarShare = 0;
+
+  if (carTypes.length > 0 && totalCarGridArea > 0 && commonTotal > 0 && targetRatio > 0) {
+    const bigPublicArea = totalMB * targetRatio / (1 - targetRatio);
+    const carParkTotal = commonTotal - bigPublicArea;
+    carResults = carTypes.map((c,i) => {
+      const count = c.count || 0;
+      const gridTotal = count * (c.gridArea||0);
+      const areaEach = carParkTotal * (gridTotal / totalCarGridArea) / count;
+      const shareEachRaw = areaEach / commonTotal * 100000;
+      const shareEach = ver().carShares[i] !== undefined
+        ? ver().carShares[i]
+        : Math.round(shareEachRaw);
+      return {
+        ...c, shareEach, areaEach,
+        shareTotal: shareEach * count,
+        areaTotal: areaEach * count,
+        gridTotal, carParkTotal
+      };
+    });
+    totalCarShare = carResults.reduce((s,c) => s + c.shareTotal, 0);
+
+    // 各戶大公持分合計（用 mb map 確保相同 mb 只算一次持分）
+    const bigPublicShare0 = 100000 - totalCarShare;
+    const mbMap = {};
+    units.forEach(u => {
+      const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+      if (mbMap[mb] === undefined) mbMap[mb] = Math.round(mb / totalMB * bigPublicShare0);
+    });
+    const unitShareSum = units.reduce((s,u) => {
+      const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+      return s + mbMap[mb];
+    }, 0);
+    // 閉合差額補到數量最少的車位類型
+    const closingDiff = 100000 - (unitShareSum + totalCarShare);
+    if (closingDiff !== 0) {
+      const minIdx = carResults.reduce((mi,c,i,arr) => (c.count||0) < (arr[mi].count||0) ? i : mi, 0);
+      carResults[minIdx].shareEach += closingDiff;
+      carResults[minIdx].shareTotal = carResults[minIdx].shareEach * (carResults[minIdx].count||0);
+      totalCarShare = carResults.reduce((s,c) => s + c.shareTotal, 0);
+    }
+  }
+
+  // 補完車位後，用最終 totalCarShare 重新算 bigPublicShare 與 mbShareMap
+  const bigPublicShare = 100000 - totalCarShare;
+  const mbShareMap = {};
+  units.forEach(u => {
+    const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+    if (mbShareMap[mb] === undefined)
+      mbShareMap[mb] = Math.round(mb / totalMB * bigPublicShare);
+  });
+
+  // 各戶持分加總 vs bigPublicShare 的差額
+  const mbCountMap = {};
+  units.forEach(u => {
+    const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+    mbCountMap[mb] = (mbCountMap[mb]||0) + 1;
+  });
+  const unitShareSum = units.reduce((s,u) => {
+    const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+    return s + mbShareMap[mb];
+  }, 0);
+  const bigDiff = bigPublicShare - unitShareSum;
+
+  let manualAdjustNeeded = false;
+  if (bigDiff !== 0) {
+    // 找獨一戶（該mb只有1戶），優先選面積最大的
+    const soloMbs = Object.keys(mbCountMap)
+      .filter(mb => mbCountMap[mb] === 1)
+      .map(Number)
+      .sort((a,b) => b - a);
+    if (soloMbs.length > 0) {
+      mbShareMap[soloMbs[0]] += bigDiff;
+    } else {
+      manualAdjustNeeded = true;
+    }
+  }
+
+  const unitResults = units.map(u => {
+    const mb = Math.round(((u.main||0) + (u.bal||0)) * 100) / 100;
+    const share = mbShareMap[mb];
+    const commonArea = commonTotal * share / 100000;
+    const regArea = mb + commonArea;
+    const csRatio = regArea > 0 ? commonArea / regArea : 0;
+    return {
+      ...u, mb,
+      commonShare: share,
+      landShare: share,
+      commonArea, regArea, csRatio,
+      manualAdjustNeeded
+    };
+  });
+
+  const finalBigShare = unitResults.reduce((s,u) => s + u.commonShare, 0);
+  const totalShare = finalBigShare + totalCarShare;
+
+  // Render results
+  renderResults(unitResults, carResults, commonTotal, totalMB, finalBigShare, totalCarShare, totalShare, manualAdjustNeeded);
+}
+
+function renderEmpty() {
+  document.getElementById('resBody').innerHTML =
+    '<tr><td colspan="17" style="text-align:center;padding:20px;color:#aaa">請輸入各戶面積及公設總面積</td></tr>';
+  document.getElementById('closeVal').textContent = '—';
+  document.getElementById('closeBar').style.background = 'var(--navy)';
+}
+
+function renderResults(units, cars, commonTotal, totalMB, bigShare, carShare, totalShare, manualAdjustNeeded) {
+  // 各戶表
+  const tbody = document.getElementById('resBody');
+  tbody.innerHTML = '';
+  units.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="label">${u.floor||'—'}</td>
+      <td class="center">${u.unit||'—'}</td>
+      <td class="label">${u.door||'—'}</td>
+      <td>${fmt(u.main)}</td><td>${px(u.main)}</td>
+      <td>${u.bal?fmt(u.bal):'—'}</td><td>${u.bal?px(u.bal):'—'}</td>
+      <td><b>${fmt(u.mb)}</b></td><td>${px(u.mb)}</td>
+      <td>${fmt(u.commonArea)}</td><td>${px(u.commonArea)}</td>
+      <td><b>${fmt(u.regArea)}</b></td><td>${px(u.regArea)}</td>
+      <td>${u.commonShare}</td>
+      <td>${u.landShare}</td>
+      <td class="${u.csRatio>0.35?'notice-red':u.csRatio>0.33?'notice-yellow':''}">${(u.csRatio*100).toFixed(2)}%</td>
+      <td class="center">—</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // 合計列
+  const totalMBall = units.reduce((s,u)=>s+u.mb,0);
+  const totalCommonArea = units.reduce((s,u)=>s+u.commonArea,0);
+  const totalReg = units.reduce((s,u)=>s+u.regArea,0);
+  const avgRatio = totalCommonArea/totalReg;
+  const tr = document.createElement('tr');
+  tr.className = 'total-row';
+  tr.innerHTML = `
+    <td class="label" colspan="3">合　計</td>
+    <td>${fmt(units.reduce((s,u)=>s+u.main,0))}</td><td>${px(units.reduce((s,u)=>s+u.main,0))}</td>
+    <td>${fmt(units.reduce((s,u)=>s+u.bal,0))}</td><td>${px(units.reduce((s,u)=>s+u.bal,0))}</td>
+    <td><b>${fmt(totalMBall)}</b></td><td>${px(totalMBall)}</td>
+    <td>${fmt(totalCommonArea)}</td><td>${px(totalCommonArea)}</td>
+    <td><b>${fmt(totalReg)}</b></td><td>${px(totalReg)}</td>
+    <td>${bigShare}</td><td>${bigShare}</td>
+    <td>${(avgRatio*100).toFixed(2)}%</td><td></td>
+  `;
+  tbody.appendChild(tr);
+
+  // 狀態列
+  document.getElementById('statusBar').innerHTML = `
+    <div class="stat">📐 各戶主+附屬合計：<b>${fmt(totalMB)} ㎡</b></div>
+    <div class="stat">🏢 大公總面積：<b>${fmt(commonTotal*bigShare/100000)} ㎡</b></div>
+    <div class="stat">🚗 車公總面積：<b>${fmt(commonTotal*carShare/100000)} ㎡</b></div>
+    <div class="stat">📊 平均公設比：<b>${(avgRatio*100).toFixed(2)}%</b></div>
+    ${manualAdjustNeeded ? '<div class="stat" style="color:#c00;font-weight:700">⚠️ 所有戶別面積皆有重複，持分差額無法自動吸收，請手動調整各戶持分</div>' : ''}
+  `;
+
+  // 閉合狀態（用/100000基準）
+  const closeVal = bigShare + carShare; // /100000
+  document.getElementById('closeVal').textContent = (closeVal*10).toLocaleString();
+  const diff = 1000000 - closeVal*10;
+  const badge = document.getElementById('closeBadge');
+  const note = document.getElementById('closeNote');
+  if (diff === 0) {
+    badge.innerHTML = '<span class="badge badge-ok">✅ 閉合</span>';
+    note.textContent = '';
+    document.getElementById('closeBar').style.background = '#1a4a2e';
+  } else {
+    badge.innerHTML = `<span class="badge badge-warn">⚠️ 差 ${diff>0?'+':''}${diff}</span>`;
+    note.textContent = `請調整車位持分使總和 = 1,000,000`;
+    document.getElementById('closeBar').style.background = '#4a3a00';
+  }
+
+  // 車位分配頁
+  renderCarShare(cars, commonTotal, bigShare, carShare);
+  // 彙總頁
+  renderSummary(units, cars, commonTotal, bigShare, carShare);
+  // 車位結果（左側）
+  renderCarResult(cars, commonTotal);
+}
+
+function renderCarShare(cars, commonTotal, bigShare, carShare) {
+  const el = document.getElementById('carShareArea');
+  if (!cars || cars.length === 0) {
+    el.innerHTML = '<div class="notice notice-blue" style="margin:16px">尚未設定車位類型</div>';
+    return;
+  }
+  const totalCarShare = cars.reduce((s,c)=>s+c.shareTotal,0);
+  let html = `
+    <div class="notice notice-blue" style="margin-bottom:12px">
+      大公持分合計：<b>${bigShare}</b> + 車公持分合計：<b>${totalCarShare}</b> = <b>${bigShare+totalCarShare}</b> / 100,000<br>
+      對應 1,000,000 基準：${(bigShare+totalCarShare)*10} / 1,000,000
+      ${(bigShare+totalCarShare)===100000?'　✅ 閉合':'　⚠️ 未閉合，請調整各類持分'}
+    </div>
+    <table class="car-table" style="width:100%">
+      <thead><tr>
+        <th>車位類型</th><th>數量</th><th>車格尺寸㎡</th>
+        <th>每位持分<br>/100000</th><th>持分合計</th>
+        <th>每位面積㎡</th><th>每位面積坪</th><th>面積合計㎡</th>
+      </tr></thead><tbody>`;
+  cars.forEach((c,i) => {
+    html += `<tr>
+      <td>${c.name}</td><td style="text-align:center">${c.count}</td>
+      <td style="text-align:right">${c.gridArea}</td>
+      <td style="text-align:center">
+        <input class="res-table input share-input" type="number" value="${c.shareEach}"
+          onchange="setCarShare(${i},parseInt(this.value)||0)"
+          style="width:70px;padding:3px 6px;border:1px solid #aac;border-radius:4px;font-size:13px;text-align:right;background:#fffce8;font-weight:700">
+      </td>
+      <td style="text-align:right;font-weight:700">${c.shareTotal}</td>
+      <td style="text-align:right">${fmt(c.areaEach)}</td>
+      <td style="text-align:right">${(c.areaEach*0.3025).toFixed(2)}</td>
+      <td style="text-align:right">${fmt(c.areaTotal)}</td>
+    </tr>`;
+  });
+  html += `<tr style="font-weight:700;background:#e8f0e8">
+    <td colspan="4">合計</td>
+    <td style="text-align:right">${totalCarShare}</td>
+    <td></td><td></td>
+    <td style="text-align:right">${fmt(cars.reduce((s,c)=>s+c.areaTotal,0))}</td>
+  </tr></tbody></table>
+  <div style="margin-top:12px;font-size:12px;color:#666">
+    💡 「每位持分」欄位可手動修改，修改後自動重算閉合狀態。<br>
+    調整原則：讓各類持分×數量加上大公持分合計 = 100,000。
+  </div>`;
+  el.innerHTML = html;
+}
+
+function renderSummary(units, cars, commonTotal, bigShare, carShare) {
+  const totalMB = units.reduce((s,u)=>s+u.mb,0);
+  const totalReg = units.reduce((s,u)=>s+u.regArea,0);
+  const avgRatio = units.reduce((s,u)=>s+u.commonArea,0) / totalReg;
+  const el = document.getElementById('summaryArea');
+  el.innerHTML = `
+    <table class="car-table" style="width:100%;margin-bottom:16px">
+      <thead><tr><th colspan="2">面積彙總</th></tr></thead>
+      <tbody>
+        <tr><td>各戶主+附屬合計</td><td style="text-align:right"><b>${fmt(totalMB)} ㎡ / ${px(totalMB)} 坪</b></td></tr>
+        <tr><td>公設總面積（大公+車公）</td><td style="text-align:right"><b>${fmt(commonTotal)} ㎡ / ${px(commonTotal)} 坪</b></td></tr>
+        <tr><td>　大公面積（各戶分攤）</td><td style="text-align:right">${fmt(commonTotal*bigShare/100000)} ㎡ / ${px(commonTotal*bigShare/100000)} 坪</td></tr>
+        <tr><td>　車公面積（車位分攤）</td><td style="text-align:right">${fmt(commonTotal*carShare/100000)} ㎡ / ${px(commonTotal*carShare/100000)} 坪</td></tr>
+        <tr><td>各戶登記面積合計</td><td style="text-align:right"><b>${fmt(totalReg)} ㎡ / ${px(totalReg)} 坪</b></td></tr>
+        <tr><td>平均公設比</td><td style="text-align:right"><b>${(avgRatio*100).toFixed(2)}%</b></td></tr>
+      </tbody>
+    </table>
+    <table class="car-table" style="width:100%">
+      <thead><tr><th colspan="2">持分彙總（/100,000）</th></tr></thead>
+      <tbody>
+        <tr><td>大公持分合計</td><td style="text-align:right">${bigShare}</td></tr>
+        ${cars.map(c=>`<tr><td>${c.name}（${c.count}位 × ${c.shareEach}）</td><td style="text-align:right">${c.shareTotal}</td></tr>`).join('')}
+        <tr style="font-weight:700;background:#e8f0e8"><td>總計（應=100,000）</td><td style="text-align:right">${bigShare+cars.reduce((s,c)=>s+c.shareTotal,0)}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+function renderCarResult(cars, commonTotal) {
+  const el = document.getElementById('carResult');
+  if (!cars || cars.length === 0) { el.style.display='none'; return; }
+  el.style.display='block';
+  el.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">🚗 車位面積計算結果</div>` +
+    cars.map(c => `
+      <div class="car-result-row">
+        <span>${c.name}（${c.count}位）</span>
+        <span><b>${fmt(c.areaEach)} ㎡</b> / ${(c.areaEach*0.3025).toFixed(2)} 坪 × ${c.count} = ${fmt(c.areaTotal)} ㎡<br><small style="color:#888">持分 ${c.shareEach}/100000，${c.count}位合計持分 ${c.shareTotal}</small></span>
+      </div>`).join('');
+}
+
+function setCarShare(i, val) {
+  ver().carShares[i] = val;
+  calc();
+}
+
+// ══════════════════════════════════════════════════════
+// Paste import
+// ══════════════════════════════════════════════════════
+function importXlsx(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      // 找第一個工作表（或名稱含「面積」「匯入」的）
+      let wsName = wb.SheetNames[0];
+      for (const n of wb.SheetNames) {
+        if (n.includes('面積') || n.includes('匯入') || n.includes('建物')) { wsName = n; break; }
+      }
+      const ws = wb.Sheets[wsName];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+
+      // 找資料起始列：跳過標題、說明列，找第一列 D欄有數字的
+      let startRow = -1;
+      for (let i = 0; i < rows.length; i++) {
+        const d = parseFloat(rows[i][3]);
+        if (!isNaN(d) && d > 0) { startRow = i; break; }
+      }
+      if (startRow < 0) {
+        showImportMsg('❌ 找不到面積資料，請確認 D 欄有主建物面積數字', 'err');
+        return;
+      }
+
+      const newUnits = [];
+      for (let i = startRow; i < rows.length; i++) {
+        const row = rows[i];
+        const main = parseFloat(row[3]);
+        if (!main || main <= 0) continue;
+        // 過濾合計列（門牌欄含「合計」，或樓層+戶別都是空的）
+        const door = String(row[2]||'').trim();
+        if (door.includes('合計') || door.includes('小計') || door.includes('total')) continue;
+        // 過濾樓層欄也含「合計」的情況，或樓層+戶別同時為空（合計列特徵）
+        const floor = String(row[0]||'').trim();
+        const unit = String(row[1]||'').trim();
+        if (floor.includes('合計') || floor.includes('小計')) continue;
+        if (!floor && !unit) continue;
+        newUnits.push({
+          floor: floor,
+          unit:  String(row[1]||'').trim(),
+          door:  door,
+          main:  main,
+          bal:   parseFloat(row[4])||0,
+          note:  String(row[5]||'').trim()
+        });
+      }
+
+      if (newUnits.length === 0) {
+        showImportMsg('❌ 沒有讀到有效資料', 'err');
+        return;
+      }
+
+      // 詢問是取代還是追加
+      const action = confirm(
+        `讀到 ${newUnits.length} 筆資料。
+
+` +
+        `點「確定」→ 取代現有資料
+點「取消」→ 追加到現有資料後面`
+      );
+      if (action) {
+        ver().units = newUnits;
+      } else {
+        ver().units = [...ver().units, ...newUnits];
+      }
+
+      renderUnitTable();
+      calc();
+      showImportMsg(`✅ 成功匯入 ${newUnits.length} 筆建物資料（工作表：${wsName}）`, 'ok');
+      input.value = ''; // reset so same file can be re-uploaded
+    } catch(err) {
+      showImportMsg('❌ 讀取失敗：' + err.message, 'err');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showImportMsg(msg, type) {
+  const el = document.getElementById('importMsg');
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.style.background = type==='ok' ? '#d4edda' : '#f8d7da';
+  el.style.color = type==='ok' ? '#155724' : '#721c24';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function importCSV() {
+  document.getElementById('pasteModal').style.display='flex';
+}
+function closePaste() {
+  document.getElementById('pasteModal').style.display='none';
+}
+function doPaste() {
+  const text = document.getElementById('pasteArea').value.trim();
+  if (!text) return;
+  const rows = text.split('\n');
+  const newUnits = rows.map(r => {
+    const cols = r.split('\t');
+    return {
+      floor: cols[0]||'', unit: cols[1]||'', door: cols[2]||'',
+      main: parseFloat(cols[3])||0, bal: parseFloat(cols[4])||0
+    };
+  }).filter(u => u.main > 0);
+  if (newUnits.length > 0) {
+    ver().units = [...ver().units, ...newUnits];
+    renderUnitTable();
+    calc();
+  }
+  document.getElementById('pasteArea').value = '';
+  closePaste();
+}
+
+// ══════════════════════════════════════════════════════
+// Export Excel
+// ══════════════════════════════════════════════════════
+function exportExcel() {
+  const commonTotal = parseFloat(ver().commonTotal)||0;
+  const units = ver().units;
+  const cars = ver().carTypes;
+  if (!commonTotal || units.length===0) { alert('請先完成計算'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const totalMB = units.reduce((s,u)=>s+(u.main||0)+(u.bal||0),0);
+
+  // 計算持分
+  const totalCarGridArea = cars.reduce((s,c)=>s+(c.count||0)*(c.gridArea||0),0);
+  const targetRatio = parseFloat(ver().targetRatio)/100||0;
+  let bigShare = 100000, carShare = 0, carResults = [];
+
+  if (cars.length > 0 && totalCarGridArea > 0 && commonTotal > 0 && targetRatio > 0) {
+    const bigPublicArea = totalMB * targetRatio / (1 - targetRatio);
+    const carParkTotal = commonTotal - bigPublicArea;
+    carResults = cars.map((c,i) => {
+      const count = c.count || 0;
+      const gridTotal = count * (c.gridArea||0);
+      const areaEach = carParkTotal * (gridTotal / totalCarGridArea) / count;
+      const shareEach = ver().carShares[i] !== undefined
+        ? ver().carShares[i]
+        : Math.round(areaEach / commonTotal * 100000);
+      return {...c, shareEach, areaEach: areaEach, gridTotal, shareTotal: shareEach*count};
+    });
+    carShare = carResults.reduce((s,c) => s + c.shareTotal, 0);
+    bigShare = 100000 - carShare;
+
+    // 閉合差額補到數量最少的車位類型（用 mb map 確保一致性）
+    const mbMap2 = {};
+    units.forEach(u => {
+      const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+      if (mbMap2[mb] === undefined) mbMap2[mb] = Math.round(mb/totalMB*bigShare);
+    });
+    const unitShareSum = units.reduce((s,u) => {
+      const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+      return s + mbMap2[mb];
+    }, 0);
+    const closingDiff = 100000 - (unitShareSum + carShare);
+    if (closingDiff !== 0) {
+      const minIdx = carResults.reduce((mi,c,i,arr)=>(c.count||0)<(arr[mi].count||0)?i:mi, 0);
+      carResults[minIdx].shareEach += closingDiff;
+      carResults[minIdx].shareTotal = carResults[minIdx].shareEach * (carResults[minIdx].count||0);
+      carShare = carResults.reduce((s,c) => s + c.shareTotal, 0);
+      bigShare = 100000 - carShare;
+    }
+  }
+
+  // 補完後用最終 bigShare 重建 mbShareMap，並處理剩餘差額
+  const mbShareMap2 = {};
+  units.forEach(u => {
+    const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+    if (mbShareMap2[mb] === undefined)
+      mbShareMap2[mb] = Math.round(mb/totalMB*bigShare);
+  });
+  // 吸收大公持分加總與 bigShare 的差額 → 補給獨一戶中面積最大的
+  const mbCountMap2 = {};
+  units.forEach(u => { const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100; mbCountMap2[mb]=(mbCountMap2[mb]||0)+1; });
+  const unitShareSum2 = units.reduce((s,u) => s + mbShareMap2[Math.round(((u.main||0)+(u.bal||0))*100)/100], 0);
+  const bigDiff2 = bigShare - unitShareSum2;
+  if (bigDiff2 !== 0) {
+    const soloMbs2 = Object.keys(mbCountMap2).filter(mb=>mbCountMap2[mb]===1).map(Number).sort((a,b)=>b-a);
+    if (soloMbs2.length > 0) mbShareMap2[soloMbs2[0]] += bigDiff2;
+  }
+
+  const unitResults = units.map(u => {
+    const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
+    const share = mbShareMap2[mb];
+    const commonArea = commonTotal*share/100000;
+    const regArea = mb+commonArea;
+    return {...u, mb, commonShare:share, commonArea, regArea, csRatio:commonArea/regArea};
+  });
+
+  // Sheet 1: 面積表
+  const rows = [];
+  rows.push([ver().projName || '建物面積表', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+  rows.push([]);
+  rows.push(['樓層','戶別','門牌','主建物㎡','主建物坪','陽台㎡','陽台坪','主+附㎡','主+附坪','大公㎡','大公坪','登記㎡','登記坪','大公持分/100000','土地持分/100000','公設比']);
+  unitResults.forEach(u => rows.push([
+    u.floor, u.unit, u.door,
+    +u.main.toFixed(2), +(u.main*0.3025).toFixed(2),
+    u.bal?+u.bal.toFixed(2):0, u.bal?+(u.bal*0.3025).toFixed(2):0,
+    +u.mb.toFixed(2), +(u.mb*0.3025).toFixed(2),
+    +u.commonArea.toFixed(2), +(u.commonArea*0.3025).toFixed(2),
+    +u.regArea.toFixed(2), +(u.regArea*0.3025).toFixed(2),
+    u.commonShare, u.commonShare,
+    +( u.csRatio*100).toFixed(2)+'%'
+  ]));
+  // 合計
+  const sumMain=unitResults.reduce((s,u)=>s+u.main,0);
+  const sumBal=unitResults.reduce((s,u)=>s+u.bal,0);
+  const sumMB=unitResults.reduce((s,u)=>s+u.mb,0);
+  const sumCA=unitResults.reduce((s,u)=>s+u.commonArea,0);
+  const sumReg=unitResults.reduce((s,u)=>s+u.regArea,0);
+  const sumCS=unitResults.reduce((s,u)=>s+u.commonShare,0);
+  rows.push([]);
+  rows.push(['合計','','',
+    +sumMain.toFixed(2),+(sumMain*0.3025).toFixed(2),
+    +sumBal.toFixed(2),+(sumBal*0.3025).toFixed(2),
+    +sumMB.toFixed(2),+(sumMB*0.3025).toFixed(2),
+    +sumCA.toFixed(2),+(sumCA*0.3025).toFixed(2),
+    +sumReg.toFixed(2),+(sumReg*0.3025).toFixed(2),
+    sumCS,sumCS,''
+  ]);
+  rows.push([]);
+  rows.push(['公設總面積', commonTotal+'㎡', '大公持分', bigShare+'/100000', '車公持分', carShare+'/100000', '持分合計', bigShare+carShare+'/100000']);
+  const ws1 = XLSX.utils.aoa_to_sheet(rows);
+  ws1['!cols'] = [{wch:10},{wch:8},{wch:22},{wch:10},{wch:9},{wch:8},{wch:8},{wch:10},{wch:9},{wch:10},{wch:9},{wch:10},{wch:9},{wch:14},{wch:14},{wch:8}];
+  XLSX.utils.book_append_sheet(wb, ws1, '面積表');
+
+  // Sheet 2: 車位持分
+  if (carResults.length > 0) {
+    const r2 = [
+      ['車位類型','數量','車格尺寸㎡','每位持分/100000','持分合計','每位面積㎡','每位面積坪','面積合計㎡']
+    ];
+    carResults.forEach(c => r2.push([
+      c.name, c.count, c.gridArea,
+      c.shareEach, c.shareEach*c.count,
+      +c.areaEach.toFixed(2), +(c.areaEach*0.3025).toFixed(2),
+      +(c.areaEach*c.count).toFixed(2)
+    ]));
+    r2.push(['合計','','','',
+      carResults.reduce((s,c)=>s+c.shareEach*c.count,0),
+      '','',
+      +carResults.reduce((s,c)=>s+c.areaEach*c.count,0).toFixed(2)
+    ]);
+    r2.push([]);
+    r2.push(['大公持分',bigShare,'車公持分',carShare,'合計',bigShare+carShare,'目標100000',bigShare+carShare===100000?'✅閉合':'❌未閉合']);
+    const ws2 = XLSX.utils.aoa_to_sheet(r2);
+    ws2['!cols'] = [{wch:12},{wch:8},{wch:12},{wch:16},{wch:12},{wch:12},{wch:12},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, ws2, '車位持分');
+  }
+
+  const ts = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const name = (ver().projName||'面積表').replace(/[/\\?*[\]:]/g,'_');
+  const fname = `${name}_${ver().name}_${ts}.xlsx`;
+  const out = XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  const blob = new Blob([out],{type:'application/octet-stream'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════
+// Tabs
+// ══════════════════════════════════════════════════════
+function showTab(id, el) {
+  document.querySelectorAll('.rtab-content').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.rtab').forEach(e=>e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════
+// Render all
+// ══════════════════════════════════════════════════════
+function renderAll() {
+  renderVerTabs();
+  renderUnitTable();
+  renderCarTable();
+  calc();
+}
+
+function resetAll() {
+  if (!confirm('確定清除所有資料？')) return;
+  ver().units = [];
+  ver().carTypes = [];
+  ver().carShares = {};
+  ver().commonTotal = '';
+  ver().targetRatio = '';
+  loadStateToInputs();
+  renderAll();
+}
+</script>
+</body>
+</html>
