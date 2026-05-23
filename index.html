@@ -162,11 +162,12 @@ input:focus,select:focus{outline:none;border-color:var(--blue2);box-shadow:0 0 0
         </div>
         <div class="field-row">
           <div class="field" style="max-width:160px">
+            <label>公設／車位持分分母</label>
+            <input type="number" id="publicDenominator" placeholder="例：100000" min="1000" step="1" oninput="calc()">
+          </div>
+          <div class="field" style="max-width:160px">
             <label>土地持分分母</label>
-            <select id="landDenominator" onchange="calc()">
-              <option value="10000">10,000</option>
-              <option value="100000" selected>100,000</option>
-            </select>
+            <input type="number" id="landDenominator" placeholder="例：10000" min="1000" step="1" oninput="calc()">
           </div>
         </div>
         <div class="notice notice-blue">公設比 = 大公面積 ÷ （主+附屬 + 大公）。輸入目標公設比可反推大公應佔面積，或直接輸入公設總面積。</div>
@@ -232,7 +233,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue2);box-shadow:0 0 0
     <div class="close-bar" id="closeBar">
       <span>持分閉合</span>
       <span class="close-val" id="closeVal">—</span>
-      <span style="opacity:.6">/ 1,000,000</span>
+      <span style="opacity:.6" id="closeDenom">/ 100,000</span>
       <span id="closeBadge"></span>
       <span style="margin-left:auto;opacity:.7;font-size:11px" id="closeNote"></span>
     </div>
@@ -259,7 +260,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue2);box-shadow:0 0 0
               <th colspan="2">主＋附屬</th>
               <th colspan="2">大公分攤</th>
               <th colspan="2">登記面積</th>
-              <th rowspan="2">大公持分<br>/100000</th>
+              <th rowspan="2" id="thPubShare">大公持分<br>/100000</th>
               <th rowspan="2" id="thLandShare">土地持分<br>/100000</th>
               <th rowspan="2">公設比</th>
               <th rowspan="2">車位編號</th>
@@ -319,7 +320,8 @@ let versions = [{
   id: 1, name: '版本1',
   projName: '', landLot: '', landArea: '',
   commonTotal: '', targetRatio: '',
-  landDenominator: 100000,
+  publicDenominator: 100000,
+  landDenominator: 10000,
   units: [],
   carTypes: [],
   carShares: {} // {carTypeIndex: shareEach (手動調整)}
@@ -338,6 +340,8 @@ window.onload = () => {
   ver().landArea = '850.25';
   ver().commonTotal = '2611.29';
   ver().targetRatio = '32.04';
+  ver().publicDenominator = 100000;
+  ver().landDenominator = 10000;
   ver().units = [
     {floor:'1+2F',unit:'A',door:'8號',main:233.38,bal:0},
     {floor:'1+2F',unit:'A5',door:'18號',main:200.75,bal:7.5},
@@ -398,7 +402,8 @@ function saveInputsToState() {
   ver().landArea = document.getElementById('landArea').value;
   ver().commonTotal = document.getElementById('commonTotal').value;
   ver().targetRatio = document.getElementById('targetRatio').value;
-  ver().landDenominator = parseInt(document.getElementById('landDenominator').value) || 100000;
+  ver().publicDenominator = parseInt(document.getElementById('publicDenominator').value) || 100000;
+  ver().landDenominator = parseInt(document.getElementById('landDenominator').value) || 10000;
 }
 
 function loadStateToInputs() {
@@ -407,7 +412,8 @@ function loadStateToInputs() {
   document.getElementById('landArea').value = ver().landArea || '';
   document.getElementById('commonTotal').value = ver().commonTotal || '';
   document.getElementById('targetRatio').value = ver().targetRatio || '';
-  document.getElementById('landDenominator').value = ver().landDenominator || 100000;
+  document.getElementById('publicDenominator').value = ver().publicDenominator || 100000;
+  document.getElementById('landDenominator').value = ver().landDenominator || 10000;
 }
 
 // ══════════════════════════════════════════════════════
@@ -489,6 +495,7 @@ function calc() {
   const targetRatio = parseFloat(ver().targetRatio) / 100 || 0;
   const units = ver().units;
   const carTypes = ver().carTypes;
+  const pubDenom = parseInt(ver().publicDenominator) || 100000;
 
   if (!commonTotal || units.length === 0) {
     renderEmpty();
@@ -499,11 +506,7 @@ function calc() {
   const totalMB = units.reduce((s,u) => s + (u.main||0) + (u.bal||0), 0);
   if (totalMB === 0) { renderEmpty(); return; }
 
-  // Step 2: 車位計算
-  // 大公面積 = 公設總面積 × 公設比
-  // 車位總面積（車公）= 公設總面積 - 大公面積
-  // 每位登記面積 = 車公總面積 × (該類車格合計 / 車格總面積) / 數量
-  // 每位持分 = 每位登記面積 / 公設總面積 × 100000
+  // Step 2: 車位計算（持分分母 = pubDenom）
   const totalCarGridArea = carTypes.reduce((s,c) => s + (c.count||0)*(c.gridArea||0), 0);
   let carResults = [];
   let totalCarShare = 0;
@@ -515,7 +518,7 @@ function calc() {
       const count = c.count || 0;
       const gridTotal = count * (c.gridArea||0);
       const areaEach = carParkTotal * (gridTotal / totalCarGridArea) / count;
-      const shareEachRaw = areaEach / commonTotal * 100000;
+      const shareEachRaw = areaEach / commonTotal * pubDenom;
       const shareEach = ver().carShares[i] !== undefined
         ? ver().carShares[i]
         : Math.round(shareEachRaw);
@@ -529,7 +532,7 @@ function calc() {
     totalCarShare = carResults.reduce((s,c) => s + c.shareTotal, 0);
 
     // 各戶大公持分合計（用 mb map 確保相同 mb 只算一次持分）
-    const bigPublicShare0 = 100000 - totalCarShare;
+    const bigPublicShare0 = pubDenom - totalCarShare;
     const mbMap = {};
     units.forEach(u => {
       const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
@@ -540,7 +543,7 @@ function calc() {
       return s + mbMap[mb];
     }, 0);
     // 閉合差額補到數量最少的車位類型
-    const closingDiff = 100000 - (unitShareSum + totalCarShare);
+    const closingDiff = pubDenom - (unitShareSum + totalCarShare);
     if (closingDiff !== 0) {
       const minIdx = carResults.reduce((mi,c,i,arr) => (c.count||0) < (arr[mi].count||0) ? i : mi, 0);
       carResults[minIdx].shareEach += closingDiff;
@@ -550,7 +553,7 @@ function calc() {
   }
 
   // 補完車位後，用最終 totalCarShare 重新算 bigPublicShare 與 mbShareMap
-  const bigPublicShare = 100000 - totalCarShare;
+  const bigPublicShare = pubDenom - totalCarShare;
   const mbShareMap = {};
   units.forEach(u => {
     const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
@@ -587,7 +590,7 @@ function calc() {
   const unitResults = units.map(u => {
     const mb = Math.round(((u.main||0) + (u.bal||0)) * 100) / 100;
     const share = mbShareMap[mb];
-    const commonArea = commonTotal * share / 100000;
+    const commonArea = commonTotal * share / pubDenom;
     const regArea = mb + commonArea;
     const csRatio = regArea > 0 ? commonArea / regArea : 0;
     return {
@@ -600,7 +603,7 @@ function calc() {
   });
 
   // 土地持分計算：各戶（主+附）/ 總（主+附）× 分母，閉合至分母
-  const landDenom = parseInt(ver().landDenominator) || 100000;
+  const landDenom = parseInt(ver().landDenominator) || 10000;
   const landSharesRaw = unitResults.map(u => Math.round(u.mb / totalMB * landDenom));
   const landShareSum = landSharesRaw.reduce((s,v) => s + v, 0);
   const landDiff = landDenom - landShareSum;
@@ -616,7 +619,7 @@ function calc() {
   const totalShare = finalBigShare + totalCarShare;
 
   // Render results
-  renderResults(unitResults, carResults, commonTotal, totalMB, finalBigShare, totalCarShare, totalShare, manualAdjustNeeded, landDenom, totalLandShare);
+  renderResults(unitResults, carResults, commonTotal, totalMB, finalBigShare, totalCarShare, totalShare, manualAdjustNeeded, pubDenom, landDenom, totalLandShare);
 }
 
 function renderEmpty() {
@@ -626,9 +629,12 @@ function renderEmpty() {
   document.getElementById('closeBar').style.background = 'var(--navy)';
 }
 
-function renderResults(units, cars, commonTotal, totalMB, bigShare, carShare, totalShare, manualAdjustNeeded, landDenom, totalLandShare) {
-  landDenom = landDenom || 100000;
+function renderResults(units, cars, commonTotal, totalMB, bigShare, carShare, totalShare, manualAdjustNeeded, pubDenom, landDenom, totalLandShare) {
+  pubDenom = pubDenom || 100000;
+  landDenom = landDenom || 10000;
   totalLandShare = totalLandShare || 0;
+  const thPS = document.getElementById('thPubShare');
+  if (thPS) thPS.innerHTML = `大公持分<br>/${pubDenom.toLocaleString()}`;
   const thLS = document.getElementById('thLandShare');
   if (thLS) thLS.innerHTML = `土地持分<br>/${landDenom.toLocaleString()}`;
   // 各戶表
@@ -676,17 +682,18 @@ function renderResults(units, cars, commonTotal, totalMB, bigShare, carShare, to
   const landClose = totalLandShare === landDenom;
   document.getElementById('statusBar').innerHTML = `
     <div class="stat">📐 各戶主+附屬合計：<b>${fmt(totalMB)} ㎡</b></div>
-    <div class="stat">🏢 大公總面積：<b>${fmt(commonTotal*bigShare/100000)} ㎡</b></div>
-    <div class="stat">🚗 車公總面積：<b>${fmt(commonTotal*carShare/100000)} ㎡</b></div>
+    <div class="stat">🏢 大公總面積：<b>${fmt(commonTotal*bigShare/pubDenom)} ㎡</b></div>
+    <div class="stat">🚗 車公總面積：<b>${fmt(commonTotal*carShare/pubDenom)} ㎡</b></div>
     <div class="stat">📊 平均公設比：<b>${(avgRatio*100).toFixed(2)}%</b></div>
     <div class="stat">🌍 土地持分合計：<b>${totalLandShare}/${landDenom}</b> ${landClose ? '<span class="badge badge-ok">✅ 閉合</span>' : `<span class="badge badge-warn">⚠️ 差 ${landDenom - totalLandShare}</span>`}</div>
     ${manualAdjustNeeded ? '<div class="stat" style="color:#c00;font-weight:700">⚠️ 所有戶別面積皆有重複，持分差額無法自動吸收，請手動調整各戶持分</div>' : ''}
   `;
 
-  // 閉合狀態（用/100000基準）
-  const closeVal = bigShare + carShare; // /100000
-  document.getElementById('closeVal').textContent = (closeVal*10).toLocaleString();
-  const diff = 1000000 - closeVal*10;
+  // 公設持分閉合狀態
+  const closeVal = bigShare + carShare;
+  document.getElementById('closeVal').textContent = closeVal.toLocaleString();
+  document.getElementById('closeDenom').textContent = `/ ${pubDenom.toLocaleString()}`;
+  const diff = pubDenom - closeVal;
   const badge = document.getElementById('closeBadge');
   const note = document.getElementById('closeNote');
   if (diff === 0) {
@@ -695,35 +702,36 @@ function renderResults(units, cars, commonTotal, totalMB, bigShare, carShare, to
     document.getElementById('closeBar').style.background = '#1a4a2e';
   } else {
     badge.innerHTML = `<span class="badge badge-warn">⚠️ 差 ${diff>0?'+':''}${diff}</span>`;
-    note.textContent = `請調整車位持分使總和 = 1,000,000`;
+    note.textContent = `請調整車位持分使總和 = ${pubDenom.toLocaleString()}`;
     document.getElementById('closeBar').style.background = '#4a3a00';
   }
 
   // 車位分配頁
-  renderCarShare(cars, commonTotal, bigShare, carShare);
+  renderCarShare(cars, commonTotal, bigShare, carShare, pubDenom);
   // 彙總頁
-  renderSummary(units, cars, commonTotal, bigShare, carShare);
+  renderSummary(units, cars, commonTotal, bigShare, carShare, pubDenom);
   // 車位結果（左側）
-  renderCarResult(cars, commonTotal);
+  renderCarResult(cars, commonTotal, pubDenom);
 }
 
-function renderCarShare(cars, commonTotal, bigShare, carShare) {
+function renderCarShare(cars, commonTotal, bigShare, carShare, pubDenom) {
+  pubDenom = pubDenom || 100000;
   const el = document.getElementById('carShareArea');
   if (!cars || cars.length === 0) {
     el.innerHTML = '<div class="notice notice-blue" style="margin:16px">尚未設定車位類型</div>';
     return;
   }
   const totalCarShare = cars.reduce((s,c)=>s+c.shareTotal,0);
+  const closed = (bigShare+totalCarShare) === pubDenom;
   let html = `
     <div class="notice notice-blue" style="margin-bottom:12px">
-      大公持分合計：<b>${bigShare}</b> + 車公持分合計：<b>${totalCarShare}</b> = <b>${bigShare+totalCarShare}</b> / 100,000<br>
-      對應 1,000,000 基準：${(bigShare+totalCarShare)*10} / 1,000,000
-      ${(bigShare+totalCarShare)===100000?'　✅ 閉合':'　⚠️ 未閉合，請調整各類持分'}
+      大公持分合計：<b>${bigShare}</b> + 車公持分合計：<b>${totalCarShare}</b> = <b>${bigShare+totalCarShare}</b> / ${pubDenom.toLocaleString()}
+      ${closed?'　✅ 閉合':'　⚠️ 未閉合，請調整各類持分'}
     </div>
     <table class="car-table" style="width:100%">
       <thead><tr>
         <th>車位類型</th><th>數量</th><th>車格尺寸㎡</th>
-        <th>每位持分<br>/100000</th><th>持分合計</th>
+        <th>每位持分<br>/${pubDenom.toLocaleString()}</th><th>持分合計</th>
         <th>每位面積㎡</th><th>每位面積坪</th><th>面積合計㎡</th>
       </tr></thead><tbody>`;
   cars.forEach((c,i) => {
@@ -749,12 +757,13 @@ function renderCarShare(cars, commonTotal, bigShare, carShare) {
   </tr></tbody></table>
   <div style="margin-top:12px;font-size:12px;color:#666">
     💡 「每位持分」欄位可手動修改，修改後自動重算閉合狀態。<br>
-    調整原則：讓各類持分×數量加上大公持分合計 = 100,000。
+    調整原則：讓各類持分×數量加上大公持分合計 = ${pubDenom.toLocaleString()}。
   </div>`;
   el.innerHTML = html;
 }
 
-function renderSummary(units, cars, commonTotal, bigShare, carShare) {
+function renderSummary(units, cars, commonTotal, bigShare, carShare, pubDenom) {
+  pubDenom = pubDenom || 100000;
   const totalMB = units.reduce((s,u)=>s+u.mb,0);
   const totalReg = units.reduce((s,u)=>s+u.regArea,0);
   const avgRatio = units.reduce((s,u)=>s+u.commonArea,0) / totalReg;
@@ -765,23 +774,24 @@ function renderSummary(units, cars, commonTotal, bigShare, carShare) {
       <tbody>
         <tr><td>各戶主+附屬合計</td><td style="text-align:right"><b>${fmt(totalMB)} ㎡ / ${px(totalMB)} 坪</b></td></tr>
         <tr><td>公設總面積（大公+車公）</td><td style="text-align:right"><b>${fmt(commonTotal)} ㎡ / ${px(commonTotal)} 坪</b></td></tr>
-        <tr><td>　大公面積（各戶分攤）</td><td style="text-align:right">${fmt(commonTotal*bigShare/100000)} ㎡ / ${px(commonTotal*bigShare/100000)} 坪</td></tr>
-        <tr><td>　車公面積（車位分攤）</td><td style="text-align:right">${fmt(commonTotal*carShare/100000)} ㎡ / ${px(commonTotal*carShare/100000)} 坪</td></tr>
+        <tr><td>　大公面積（各戶分攤）</td><td style="text-align:right">${fmt(commonTotal*bigShare/pubDenom)} ㎡ / ${px(commonTotal*bigShare/pubDenom)} 坪</td></tr>
+        <tr><td>　車公面積（車位分攤）</td><td style="text-align:right">${fmt(commonTotal*carShare/pubDenom)} ㎡ / ${px(commonTotal*carShare/pubDenom)} 坪</td></tr>
         <tr><td>各戶登記面積合計</td><td style="text-align:right"><b>${fmt(totalReg)} ㎡ / ${px(totalReg)} 坪</b></td></tr>
         <tr><td>平均公設比</td><td style="text-align:right"><b>${(avgRatio*100).toFixed(2)}%</b></td></tr>
       </tbody>
     </table>
     <table class="car-table" style="width:100%">
-      <thead><tr><th colspan="2">持分彙總（/100,000）</th></tr></thead>
+      <thead><tr><th colspan="2">持分彙總（/${pubDenom.toLocaleString()}）</th></tr></thead>
       <tbody>
         <tr><td>大公持分合計</td><td style="text-align:right">${bigShare}</td></tr>
         ${cars.map(c=>`<tr><td>${c.name}（${c.count}位 × ${c.shareEach}）</td><td style="text-align:right">${c.shareTotal}</td></tr>`).join('')}
-        <tr style="font-weight:700;background:#e8f0e8"><td>總計（應=100,000）</td><td style="text-align:right">${bigShare+cars.reduce((s,c)=>s+c.shareTotal,0)}</td></tr>
+        <tr style="font-weight:700;background:#e8f0e8"><td>總計（應=${pubDenom.toLocaleString()}）</td><td style="text-align:right">${bigShare+cars.reduce((s,c)=>s+c.shareTotal,0)}</td></tr>
       </tbody>
     </table>`;
 }
 
-function renderCarResult(cars, commonTotal) {
+function renderCarResult(cars, commonTotal, pubDenom) {
+  pubDenom = pubDenom || 100000;
   const el = document.getElementById('carResult');
   if (!cars || cars.length === 0) { el.style.display='none'; return; }
   el.style.display='block';
@@ -789,7 +799,7 @@ function renderCarResult(cars, commonTotal) {
     cars.map(c => `
       <div class="car-result-row">
         <span>${c.name}（${c.count}位）</span>
-        <span><b>${fmt(c.areaEach)} ㎡</b> / ${(c.areaEach*0.3025).toFixed(2)} 坪 × ${c.count} = ${fmt(c.areaTotal)} ㎡<br><small style="color:#888">持分 ${c.shareEach}/100000，${c.count}位合計持分 ${c.shareTotal}</small></span>
+        <span><b>${fmt(c.areaEach)} ㎡</b> / ${(c.areaEach*0.3025).toFixed(2)} 坪 × ${c.count} = ${fmt(c.areaTotal)} ㎡<br><small style="color:#888">持分 ${c.shareEach}/${pubDenom.toLocaleString()}，${c.count}位合計持分 ${c.shareTotal}</small></span>
       </div>`).join('');
 }
 
@@ -930,7 +940,8 @@ function exportExcel() {
   // 計算持分
   const totalCarGridArea = cars.reduce((s,c)=>s+(c.count||0)*(c.gridArea||0),0);
   const targetRatio = parseFloat(ver().targetRatio)/100||0;
-  let bigShare = 100000, carShare = 0, carResults = [];
+  const expPubDenom = parseInt(ver().publicDenominator) || 100000;
+  let bigShare = expPubDenom, carShare = 0, carResults = [];
 
   if (cars.length > 0 && totalCarGridArea > 0 && commonTotal > 0 && targetRatio > 0) {
     const bigPublicArea = totalMB * targetRatio / (1 - targetRatio);
@@ -941,11 +952,11 @@ function exportExcel() {
       const areaEach = carParkTotal * (gridTotal / totalCarGridArea) / count;
       const shareEach = ver().carShares[i] !== undefined
         ? ver().carShares[i]
-        : Math.round(areaEach / commonTotal * 100000);
+        : Math.round(areaEach / commonTotal * expPubDenom);
       return {...c, shareEach, areaEach: areaEach, gridTotal, shareTotal: shareEach*count};
     });
     carShare = carResults.reduce((s,c) => s + c.shareTotal, 0);
-    bigShare = 100000 - carShare;
+    bigShare = expPubDenom - carShare;
 
     // 閉合差額補到數量最少的車位類型（用 mb map 確保一致性）
     const mbMap2 = {};
@@ -957,13 +968,13 @@ function exportExcel() {
       const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
       return s + mbMap2[mb];
     }, 0);
-    const closingDiff = 100000 - (unitShareSum + carShare);
+    const closingDiff = expPubDenom - (unitShareSum + carShare);
     if (closingDiff !== 0) {
       const minIdx = carResults.reduce((mi,c,i,arr)=>(c.count||0)<(arr[mi].count||0)?i:mi, 0);
       carResults[minIdx].shareEach += closingDiff;
       carResults[minIdx].shareTotal = carResults[minIdx].shareEach * (carResults[minIdx].count||0);
       carShare = carResults.reduce((s,c) => s + c.shareTotal, 0);
-      bigShare = 100000 - carShare;
+      bigShare = expPubDenom - carShare;
     }
   }
 
@@ -987,13 +998,13 @@ function exportExcel() {
   const unitResults = units.map(u => {
     const mb = Math.round(((u.main||0)+(u.bal||0))*100)/100;
     const share = mbShareMap2[mb];
-    const commonArea = commonTotal*share/100000;
+    const commonArea = commonTotal*share/expPubDenom;
     const regArea = mb+commonArea;
     return {...u, mb, commonShare:share, landShare:0, commonArea, regArea, csRatio:commonArea/regArea};
   });
 
   // 土地持分計算（匯出用）
-  const exportLandDenom = parseInt(ver().landDenominator) || 100000;
+  const exportLandDenom = parseInt(ver().landDenominator) || 10000;
   const exportLandShares = unitResults.map(u => Math.round(u.mb / totalMB * exportLandDenom));
   const exportLandSum = exportLandShares.reduce((s,v) => s+v, 0);
   const exportLandDiff = exportLandDenom - exportLandSum;
@@ -1012,7 +1023,7 @@ function exportExcel() {
   rows.push([titleName, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
   if (landAreaVal > 0) rows.push(['土地總面積：'+landAreaVal+'㎡', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
   rows.push([]);
-  rows.push(['樓層','戶別','門牌','主建物㎡','主建物坪','陽台㎡','陽台坪','主+附㎡','主+附坪','大公㎡','大公坪','登記㎡','登記坪','大公持分/100000',`土地持分/${exportLandDenom}`,'公設比']);
+  rows.push(['樓層','戶別','門牌','主建物㎡','主建物坪','陽台㎡','陽台坪','主+附㎡','主+附坪','大公㎡','大公坪','登記㎡','登記坪',`大公持分/${expPubDenom}`,`土地持分/${exportLandDenom}`,'公設比']);
   unitResults.forEach(u => rows.push([
     u.floor, u.unit, u.door,
     +u.main.toFixed(2), +(u.main*0.3025).toFixed(2),
@@ -1040,7 +1051,7 @@ function exportExcel() {
     sumCS, exportTotalLandShare, ''
   ]);
   rows.push([]);
-  rows.push(['公設總面積', commonTotal+'㎡', '大公持分', bigShare+'/100000', '車公持分', carShare+'/100000', '持分合計', bigShare+carShare+'/100000', '土地持分合計', exportTotalLandShare+'/'+exportLandDenom]);
+  rows.push(['公設總面積', commonTotal+'㎡', '大公持分', bigShare+'/'+expPubDenom, '車公持分', carShare+'/'+expPubDenom, '持分合計', (bigShare+carShare)+'/'+expPubDenom, '土地持分合計', exportTotalLandShare+'/'+exportLandDenom]);
   const ws1 = XLSX.utils.aoa_to_sheet(rows);
   ws1['!cols'] = [{wch:10},{wch:8},{wch:22},{wch:10},{wch:9},{wch:8},{wch:8},{wch:10},{wch:9},{wch:10},{wch:9},{wch:10},{wch:9},{wch:14},{wch:14},{wch:8}];
   XLSX.utils.book_append_sheet(wb, ws1, '面積表');
@@ -1048,7 +1059,7 @@ function exportExcel() {
   // Sheet 2: 車位持分
   if (carResults.length > 0) {
     const r2 = [
-      ['車位類型','數量','車格尺寸㎡','每位持分/100000','持分合計','每位面積㎡','每位面積坪','面積合計㎡']
+      ['車位類型','數量','車格尺寸㎡',`每位持分/${expPubDenom}`,'持分合計','每位面積㎡','每位面積坪','面積合計㎡']
     ];
     carResults.forEach(c => r2.push([
       c.name, c.count, c.gridArea,
@@ -1062,7 +1073,7 @@ function exportExcel() {
       +carResults.reduce((s,c)=>s+c.areaEach*c.count,0).toFixed(2)
     ]);
     r2.push([]);
-    r2.push(['大公持分',bigShare,'車公持分',carShare,'合計',bigShare+carShare,'目標100000',bigShare+carShare===100000?'✅閉合':'❌未閉合']);
+    r2.push(['大公持分',bigShare,'車公持分',carShare,'合計',bigShare+carShare,`目標${expPubDenom}`,(bigShare+carShare)===expPubDenom?'✅閉合':'❌未閉合']);
     const ws2 = XLSX.utils.aoa_to_sheet(r2);
     ws2['!cols'] = [{wch:12},{wch:8},{wch:12},{wch:16},{wch:12},{wch:12},{wch:12},{wch:12}];
     XLSX.utils.book_append_sheet(wb, ws2, '車位持分');
