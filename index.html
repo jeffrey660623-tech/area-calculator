@@ -1002,7 +1002,6 @@ function exportExcel() {
     const regArea = mb+commonArea;
     return {...u, mb, commonShare:share, landShare:0, commonArea, regArea, csRatio:commonArea/regArea};
   });
-
   // 建立支援公式的工作表 helper
   function buildSheet(rows) {
     const ws = {};
@@ -1027,6 +1026,19 @@ function exportExcel() {
     return ws;
   }
   const fml = (v, formula, z) => ({v, f: formula, z}); // 公式 cell 簡寫
+
+  // 土地持分計算（匯出用）
+  const exportLandDenom = parseInt(ver().landDenominator) || 10000;
+  const exportLandShares = unitResults.map(u => Math.round(u.mb / totalMB * exportLandDenom));
+  const exportLandSum = exportLandShares.reduce((s,v) => s+v, 0);
+  const exportLandDiff = exportLandDenom - exportLandSum;
+  if (exportLandDiff !== 0) {
+    let maxIdx = 0;
+    unitResults.forEach((u,i) => { if (u.mb > unitResults[maxIdx].mb) maxIdx = i; });
+    exportLandShares[maxIdx] += exportLandDiff;
+  }
+  unitResults.forEach((u,i) => { u.landShare = exportLandShares[i]; });
+  const exportTotalLandShare = unitResults.reduce((s,u) => s+u.landShare, 0);
 
   // Sheet 1: 面積表（含公式）
   const titleName = [ver().projName, ver().landLot].filter(Boolean).join('　') || '建物面積表';
